@@ -11,6 +11,7 @@
     "test": "jest",
     "test:sqlite": "node test-sqlite-api.js",
     "test:mongodb": "node test-mongodb.js",
+    "test:production": "node test-production-features.js",
     "test:watch": "jest --watch",
     "demo": "node demo.js"
   },

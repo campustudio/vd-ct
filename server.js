@@ -28,15 +28,24 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Body parsing middleware with error handling
+// Body parsing middleware with enhanced error handling
 app.use(express.json({ 
   limit: '10mb',
   verify: (req, res, buf) => {
     try {
       JSON.parse(buf);
     } catch (e) {
+      const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      logger.error('JSON parsing failed', { 
+        error: e.message, 
+        errorId,
+        contentLength: buf.length 
+      });
       res.status(400).json({
-        error: 'Invalid JSON format'
+        error: 'Invalid JSON format in request body',
+        errorId,
+        timestamp: new Date().toISOString(),
+        hint: 'Ensure request body contains valid JSON'
       });
       throw new Error('Invalid JSON');
     }
@@ -54,125 +63,341 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+// Enhanced health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connectivity
+    await new Promise((resolve, reject) => {
+      db.db.get('SELECT 1 as test', (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    const memUsage = process.memoryUsage();
+    res.json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      database: {
+        status: 'connected',
+        path: db.dbPath
+      },
+      memory: {
+        used: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+        total: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB'
+      },
+      nodeVersion: process.version
+    });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'disconnected',
+        error: 'Database connectivity test failed'
+      },
+      uptime: process.uptime()
+    });
+  }
 });
 
-// POST /object - Store key-value pair
+// POST /object - Store key-value pair with enhanced validation
 app.post('/object', async (req, res) => {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
+    // Validate Content-Type
+    const contentType = req.get('Content-Type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return res.status(400).json({
+        error: 'Content-Type must be application/json',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Validate request body structure
     const { error: bodyError } = validateValue(req.body);
     if (bodyError) {
       return res.status(400).json({
-        error: 'Invalid request body',
-        details: bodyError.details
+        error: 'Invalid request body format',
+        details: bodyError.details,
+        requestId,
+        timestamp: new Date().toISOString(),
+        hints: ['Request body must be valid JSON object', 'Maximum 100 properties per object']
       });
     }
 
     const entries = Object.entries(req.body);
     if (entries.length !== 1) {
       return res.status(400).json({
-        error: 'Request body must contain exactly one key-value pair'
+        error: 'Request body must contain exactly one key-value pair',
+        received: entries.length,
+        requestId,
+        timestamp: new Date().toISOString(),
+        hint: 'Send JSON like: {"mykey": "myvalue"}'
       });
     }
 
     const [key, value] = entries[0];
     
+    // Enhanced key validation
     const { error: keyError } = validateKey(key);
     if (keyError) {
       return res.status(400).json({
-        error: 'Invalid key',
-        details: keyError.details
+        error: 'Invalid key format',
+        key: key,
+        details: keyError.details,
+        requestId,
+        timestamp: new Date().toISOString(),
+        hints: [
+          'Keys must be 1-255 characters long',
+          'Only letters, numbers, underscores, hyphens, and dots allowed',
+          'Cannot start or end with dots'
+        ]
       });
     }
 
-    const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+    const timestamp = Math.floor(Date.now() / 1000);
+    const valueSize = JSON.stringify(value).length;
+    
+    // Check value size limit (1MB)
+    if (valueSize > 1024 * 1024) {
+      return res.status(413).json({
+        error: 'Value too large',
+        size: valueSize,
+        limit: 1024 * 1024,
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     await db.storeValue(key, value, timestamp);
     
-    res.json({
+    res.status(201).json({
       key,
       value,
-      timestamp
+      timestamp,
+      requestId,
+      size: valueSize
     });
 
-    logger.info('Value stored successfully', { key, timestamp });
-  } catch (error) {
-    logger.error('Error storing value', { error: error.message, stack: error.stack });
-    res.status(500).json({
-      error: 'Internal server error'
+    logger.info('Value stored successfully', { 
+      key, 
+      timestamp, 
+      requestId,
+      valueSize,
+      valueType: typeof value
     });
+  } catch (error) {
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    logger.error('Error storing value', { 
+      error: error.message, 
+      stack: error.stack,
+      requestId,
+      errorId
+    });
+    
+    if (error.message.includes('UNIQUE constraint')) {
+      res.status(409).json({
+        error: 'Duplicate key-timestamp combination',
+        requestId,
+        errorId,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        error: 'Internal server error',
+        requestId,
+        errorId,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 });
 
-// GET /object/:key - Get latest value or value at timestamp
+// GET /object/:key - Get latest value or value at timestamp with enhanced error handling
 app.get('/object/:key', async (req, res) => {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
     const { key } = req.params;
     const { timestamp } = req.query;
 
+    // Enhanced key validation
     const { error: keyError } = validateKey(key);
     if (keyError) {
       return res.status(400).json({
-        error: 'Invalid key',
-        details: keyError.details
+        error: 'Invalid key format',
+        key: key,
+        details: keyError.details,
+        requestId,
+        timestamp: new Date().toISOString(),
+        hints: [
+          'Keys must be 1-255 characters long',
+          'Only letters, numbers, underscores, hyphens, and dots allowed'
+        ]
       });
     }
 
     if (timestamp) {
+      // Enhanced timestamp validation
       const { error: timestampError } = validateTimestamp(timestamp);
       if (timestampError) {
         return res.status(400).json({
-          error: 'Invalid timestamp',
-          details: timestampError.details
+          error: 'Invalid timestamp format',
+          timestamp: timestamp,
+          details: timestampError.details,
+          requestId,
+          timestamp: new Date().toISOString(),
+          hints: [
+            'Timestamp must be a valid Unix timestamp (seconds since epoch)',
+            'Cannot be more than 1 day in the future',
+            'Example: ' + Math.floor(Date.now() / 1000)
+          ]
         });
       }
 
-      const result = await db.getValueAtTimestamp(key, parseInt(timestamp));
+      const ts = parseInt(timestamp);
+      const result = await db.getValueAtTimestamp(key, ts);
       if (!result) {
         return res.status(404).json({
-          error: 'No value found for key at the specified timestamp'
+          error: 'No value found for key at specified timestamp',
+          key: key,
+          timestamp: ts,
+          requestId,
+          timestamp: new Date().toISOString(),
+          hint: 'Try getting the latest value without timestamp parameter'
         });
       }
 
-      res.json({ value: result.value });
-      logger.info('Value retrieved at timestamp', { key, timestamp: parseInt(timestamp) });
+      // Parse value back to original type
+      let parsedValue;
+      try {
+        parsedValue = JSON.parse(result.value);
+      } catch {
+        parsedValue = result.value;
+      }
+
+      res.json({ 
+        value: parsedValue,
+        timestamp: result.timestamp,
+        requestId,
+        retrievedAt: new Date().toISOString()
+      });
+      
+      logger.info('Historical value retrieved', { 
+        key, 
+        timestamp: ts, 
+        requestId,
+        actualTimestamp: result.timestamp
+      });
     } else {
       const result = await db.getLatestValue(key);
       if (!result) {
         return res.status(404).json({
-          error: 'Key not found'
+          error: 'Key not found',
+          key: key,
+          requestId,
+          timestamp: new Date().toISOString(),
+          hint: 'Make sure the key exists by storing a value first'
         });
       }
 
-      res.json({ value: result.value });
-      logger.info('Latest value retrieved', { key });
+      // Parse value back to original type
+      let parsedValue;
+      try {
+        parsedValue = JSON.parse(result.value);
+      } catch {
+        parsedValue = result.value;
+      }
+
+      res.json({ 
+        value: parsedValue,
+        timestamp: result.timestamp,
+        requestId,
+        retrievedAt: new Date().toISOString()
+      });
+      
+      logger.info('Latest value retrieved', { 
+        key, 
+        requestId,
+        valueTimestamp: result.timestamp
+      });
     }
   } catch (error) {
-    logger.error('Error retrieving value', { error: error.message, stack: error.stack });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    logger.error('Error retrieving value', { 
+      error: error.message, 
+      stack: error.stack,
+      requestId,
+      errorId,
+      key: req.params.key
+    });
+    
     res.status(500).json({
-      error: 'Internal server error'
+      error: 'Internal server error',
+      requestId,
+      errorId,
+      timestamp: new Date().toISOString()
     });
   }
 });
 
-// 404 handler
+// Enhanced 404 handler
 app.use('*', (req, res) => {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  logger.warn('Endpoint not found', { 
+    path: req.originalUrl, 
+    method: req.method,
+    ip: req.ip,
+    requestId
+  });
+  
   res.status(404).json({
-    error: 'Endpoint not found'
+    error: 'Endpoint not found',
+    path: req.originalUrl,
+    method: req.method,
+    requestId,
+    timestamp: new Date().toISOString(),
+    availableEndpoints: [
+      'GET /',
+      'GET /health', 
+      'POST /object',
+      'GET /object/:key',
+      'GET /object/:key?timestamp=<unix_timestamp>'
+    ],
+    hint: 'Check the API documentation at GET /'
   });
 });
 
-// Global error handler
+// Enhanced global error handler
 app.use((error, req, res, next) => {
-  logger.error('Unhandled error', { error: error.message, stack: error.stack });
-  res.status(500).json({
-    error: 'Internal server error'
+  const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = req.requestId || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  logger.error('Unhandled error', { 
+    error: error.message, 
+    stack: error.stack,
+    url: req.originalUrl,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    requestId,
+    errorId
+  });
+  
+  // Don't expose internal error details in production
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  
+  res.status(error.statusCode || 500).json({
+    error: isDevelopment ? error.message : 'Internal server error',
+    requestId,
+    errorId,
+    timestamp: new Date().toISOString(),
+    ...(isDevelopment && { stack: error.stack })
   });
 });
 

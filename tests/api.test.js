@@ -22,7 +22,7 @@ describe('Version Controlled Key-Value Store API', () => {
       const response = await request(app)
         .post('/object')
         .send({ mykey: 'value1' })
-        .expect(200);
+        .expect(201);
 
       expect(response.body).toHaveProperty('key', 'mykey');
       expect(response.body).toHaveProperty('value', 'value1');
@@ -31,17 +31,17 @@ describe('Version Controlled Key-Value Store API', () => {
     });
 
     test('should update existing key with new value', async () => {
-      // First store
+      // Store initial value
       await request(app)
         .post('/object')
         .send({ testkey: 'value1' })
-        .expect(200);
+        .expect(201);
 
       // Update with new value
       const response = await request(app)
         .post('/object')
         .send({ testkey: 'value2' })
-        .expect(200);
+        .expect(201);
 
       expect(response.body).toHaveProperty('key', 'testkey');
       expect(response.body).toHaveProperty('value', 'value2');

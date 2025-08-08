@@ -30,7 +30,7 @@ async function demo() {
   
   const baseOptions = {
     hostname: 'localhost',
-    port: 3001,
+    port: 3000,
     headers: {
       'Content-Type': 'application/json'
     }

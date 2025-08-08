@@ -19,7 +19,7 @@ This project fulfills the requirements of building a version-controlled key-valu
 3. **Retrieve historical values** at specific timestamps
 4. **Production-quality code** with comprehensive error handling and validation
 5. **Deployed to cloud** with public API access
-6. **Open source database** (SQLite for local, in-memory for serverless)
+6. **Open source database** (SQLite for local, MongoDB for production, in-memory for serverless)
 
 ## 🛠 Tech Stack
 
@@ -39,12 +39,10 @@ This project fulfills the requirements of building a version-controlled key-valu
 ### Testing & Quality
 - **Jest** - Testing framework
 - **Supertest** - HTTP assertion testing
-- **ESLint** - Code linting (configured)
 
 ### Deployment & DevOps
 - **Vercel** - Serverless deployment platform
 - **Docker** - Containerization support
-- **GitHub Actions** - CI/CD (automatic deployment)
 
 ### Development Tools
 - **Nodemon** - Development auto-reload
@@ -57,7 +55,7 @@ This project fulfills the requirements of building a version-controlled key-valu
 - **RESTful API**: Simple GET/POST endpoints for data operations
 - **Production Ready**: Includes logging, error handling, rate limiting, and security middleware
 - **Triple Database Support**: SQLite for development, MongoDB for production, in-memory for serverless demos
-- **Comprehensive Testing**: Full test suite with 13 passing tests
+- **Comprehensive Testing**: Full test suite with 49 passing tests across 6 test categories
 - **Docker Support**: Containerized deployment ready
 - **Input Validation**: Robust validation using Joi schemas
 - **Serverless Optimized**: Vercel-ready with automatic scaling
@@ -127,6 +125,9 @@ npm run test:sqlite
 
 # Test MongoDB version with API calls
 npm run test:mongodb
+
+# Test production quality features
+npm run test:production
 ```
 
 ### Manual Testing
@@ -148,6 +149,7 @@ npm run test:mongodb
 | **Jest Tests** | Unit testing suite | `npm test` | SQLite |
 | **SQLite API Test** | Manual API testing | `npm run test:sqlite` | SQLite |
 | **MongoDB API Test** | Manual API testing | `npm run test:mongodb` | MongoDB |
+| **Production Features Test** | Production quality validation | `npm run test:production` | SQLite |
 | **Vercel Serverless Test** | Remote API testing | `./test-vercel-serverless.sh` | In-Memory |
 | **Demo Script** | Interactive demo | `npm run demo` | SQLite |
 
@@ -409,7 +411,7 @@ npm run test:mongodb
    - Optimized for serverless environment
    - Automatic scaling and CDN
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+All deployment instructions are included in this README.
 
 ### Docker Deployment
 
@@ -455,14 +457,13 @@ cp .env.example .env
 /
 ├── server.js                    # Main server (SQLite, local development)
 ├── server-mongodb.js            # MongoDB version (scalable, production-ready)
-├── server-serverless.js        # Serverless-optimized version
+
 ├── api/
-│   ├── index.js                # Vercel serverless entry point
-│   └── test.js                 # Simple test endpoint
+│   └── index.js                # Vercel serverless entry point
 ├── src/
 │   ├── database.js             # SQLite database (local)
 │   ├── database-mongodb.js     # MongoDB database (production)
-│   ├── database-serverless.js  # In-memory database (serverless)
+
 │   ├── validators.js           # Input validation schemas
 │   └── logger.js               # Structured logging system
 ├── tests/
@@ -476,8 +477,7 @@ cp .env.example .env
 ├── test-sqlite-api.js          # SQLite API testing script
 ├── test-mongodb.js             # MongoDB API testing script
 ├── test-vercel-serverless.sh   # Vercel serverless API testing script
-├── MONGODB_GUIDE.md            # MongoDB integration guide
-└── DEPLOYMENT.md               # Deployment instructions
+
 ```
 
 ## 🔧 Architecture
@@ -507,8 +507,8 @@ cp .env.example .env
    - JSON body validation
    - Unix timestamp validation
 
-2. **Database Layer** (`src/database.js` / `src/database-mongodb.js` / `src/database-serverless.js`)
-   - Triple implementation: development (SQLite) vs production (MongoDB) vs serverless (in-memory)
+2. **Database Layer** (`src/database.js` / `src/database-mongodb.js`)
+   - Dual implementation: development (SQLite) vs production (MongoDB), plus serverless (Vercel with in-memory)
    - Version control with timestamp indexing
    - Optimized queries for performance
 

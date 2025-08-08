@@ -10,22 +10,87 @@ class Database {
   }
 
   async init() {
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.connectWithRetry(attempt, maxRetries);
+        await this.createTables();
+        await this.optimizeDatabase();
+        logger.info('Database initialized successfully', { 
+          path: this.dbPath,
+          attempt: attempt
+        });
+        return;
+      } catch (error) {
+        logger.error('Database initialization failed', { 
+          error: error.message,
+          attempt: attempt,
+          maxRetries: maxRetries
+        });
+        
+        if (attempt === maxRetries) {
+          throw new Error(`Database initialization failed after ${maxRetries} attempts: ${error.message}`);
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      }
+    }
+  }
+
+  async connectWithRetry(attempt, maxRetries) {
     return new Promise((resolve, reject) => {
       // Ensure data directory exists
       const fs = require('fs');
       const dir = path.dirname(this.dbPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
+        logger.info('Created data directory', { path: dir });
       }
 
-      this.db = new sqlite3.Database(this.dbPath, (err) => {
+      this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
         if (err) {
-          logger.error('Error opening database', { error: err.message });
+          logger.error('Database connection failed', { 
+            error: err.message,
+            path: this.dbPath,
+            attempt: attempt,
+            maxRetries: maxRetries
+          });
           reject(err);
         } else {
-          logger.info('Database connected successfully', { path: this.dbPath });
-          this.createTables().then(resolve).catch(reject);
+          logger.info('Database connected successfully', { 
+            path: this.dbPath,
+            attempt: attempt
+          });
+          
+          // Configure database for better performance and reliability
+          this.db.configure('busyTimeout', 10000); // 10 second busy timeout
+          resolve();
         }
+      });
+    });
+  }
+
+  async optimizeDatabase() {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA cache_size = 10000;
+        PRAGMA temp_store = memory;
+        ANALYZE;
+      `;
+      
+      this.db.exec(sql, (err) => {
+        if (err) {
+          logger.warn('Database optimization failed', { error: err.message });
+          // Don't reject, optimization is not critical
+        } else {
+          logger.debug('Database optimized successfully');
+        }
+        resolve();
       });
     });
   }
@@ -68,22 +133,44 @@ class Database {
       
       // Convert value to JSON string for storage
       const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+      const valueSize = valueStr.length;
       
       this.db.run(sql, [key, valueStr, timestamp], function(err) {
         if (err) {
-          logger.error('Error storing value', { 
-            error: err.message, 
+          logger.error('Database error storing value', { 
+            error: err.message,
+            errorCode: err.code,
             key, 
-            timestamp 
+            timestamp,
+            valueSize,
+            sqlState: err.errno
           });
-          reject(err);
+          
+          // Provide more specific error information
+          if (err.code === 'SQLITE_CONSTRAINT') {
+            reject(new Error(`Constraint violation: ${err.message}`));
+          } else if (err.code === 'SQLITE_FULL') {
+            reject(new Error('Database storage full'));
+          } else if (err.code === 'SQLITE_BUSY') {
+            reject(new Error('Database is busy, please retry'));
+          } else {
+            reject(new Error(`Database operation failed: ${err.message}`));
+          }
         } else {
-          logger.debug('Value stored', { 
+          logger.debug('Value stored successfully', { 
             key, 
             timestamp, 
-            rowId: this.lastID 
+            rowId: this.lastID,
+            valueSize,
+            valueType: typeof value
           });
-          resolve({ id: this.lastID, key, value: valueStr, timestamp });
+          resolve({ 
+            id: this.lastID, 
+            key, 
+            value: valueStr, 
+            timestamp,
+            size: valueSize
+          });
         }
       });
     });
@@ -92,7 +179,7 @@ class Database {
   async getLatestValue(key) {
     return new Promise((resolve, reject) => {
       const sql = `
-        SELECT key, value, timestamp
+        SELECT key, value, timestamp, created_at
         FROM kv_store
         WHERE key = ?
         ORDER BY timestamp DESC
@@ -101,29 +188,29 @@ class Database {
 
       this.db.get(sql, [key], (err, row) => {
         if (err) {
-          logger.error('Error getting latest value', { 
-            error: err.message, 
-            key 
+          logger.error('Database error retrieving latest value', { 
+            error: err.message,
+            errorCode: err.code,
+            key,
+            sqlState: err.errno
           });
-          reject(err);
+          
+          if (err.code === 'SQLITE_BUSY') {
+            reject(new Error('Database is busy, please retry'));
+          } else {
+            reject(new Error(`Database query failed: ${err.message}`));
+          }
         } else {
           if (row) {
-            // Try to parse JSON, fallback to string
-            let parsedValue;
-            try {
-              parsedValue = JSON.parse(row.value);
-            } catch {
-              parsedValue = row.value;
-            }
-            
-            resolve({
-              key: row.key,
-              value: parsedValue,
-              timestamp: row.timestamp
+            logger.debug('Latest value retrieved', { 
+              key, 
+              timestamp: row.timestamp,
+              valueSize: row.value.length
             });
           } else {
-            resolve(null);
+            logger.debug('Key not found', { key });
           }
+          resolve(row);
         }
       });
     });

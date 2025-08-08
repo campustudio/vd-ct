@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Testing Deployed Version Controlled Key-Value Store API"
+echo "☁️ Testing Vercel Serverless API (In-Memory Storage)"
 echo "URL: https://vd-ct.vercel.app"
 echo ""
 

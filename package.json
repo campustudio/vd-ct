@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "dev:mongodb": "nodemon server-mongodb.js",
     "test": "jest",
+    "test:sqlite": "node test-sqlite-api.js",
     "test:mongodb": "node test-mongodb.js",
     "test:watch": "jest --watch",
     "demo": "node demo.js"

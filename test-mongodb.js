@@ -26,8 +26,8 @@ function makeRequest(options, data = null) {
 }
 
 async function testMongoDB() {
-  console.log('🍃 Testing MongoDB Version of Key-Value Store API');
-  console.log('Make sure MongoDB server is running and start with: npm run start:mongodb');
+  console.log('🍃 MongoDB API Regression Test');
+  console.log('Testing MongoDB server running on http://localhost:3000 (npm run start:mongodb)');
   console.log('');
 
   const baseOptions = {

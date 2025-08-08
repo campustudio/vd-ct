@@ -116,13 +116,16 @@ GET /health
 ### Local API Testing
 
 ```bash
-# Run comprehensive test suite
+# Run comprehensive Jest test suite (SQLite)
 npm test
 
 # Run tests in watch mode
 npm run test:watch
 
-# Test MongoDB version specifically
+# Test SQLite version with API calls
+npm run test:sqlite
+
+# Test MongoDB version with API calls
 npm run test:mongodb
 ```
 
@@ -131,12 +134,42 @@ npm run test:mongodb
 ```bash
 # Test SQLite version
 npm start
-node demo.js
+npm run demo
 
-# Test MongoDB version
+# Test MongoDB version  
 npm run start:mongodb
-node test-mongodb.js
+npm run test:mongodb
 ```
+
+### 📋 Test Scripts Overview
+
+| Script | Purpose | Command | Database |
+|--------|---------|---------|----------|
+| **Jest Tests** | Unit testing suite | `npm test` | SQLite |
+| **SQLite API Test** | Manual API testing | `npm run test:sqlite` | SQLite |
+| **MongoDB API Test** | Manual API testing | `npm run test:mongodb` | MongoDB |
+| **Vercel Serverless Test** | Remote API testing | `./test-vercel-serverless.sh` | In-Memory |
+| **Demo Script** | Interactive demo | `npm run demo` | SQLite |
+
+### SQLite Test Results
+
+The SQLite API test script (`test-sqlite-api.js`) verifies:
+- ✅ **API Documentation**: Endpoint information
+- ✅ **Health Check**: Server status and uptime
+- ✅ **Data Storage**: Key-value pair storage
+- ✅ **Version Control**: Historical value retrieval
+- ✅ **Error Handling**: 404 responses for missing keys
+
+### Vercel Serverless Test Results
+
+The Vercel serverless test script (`test-vercel-serverless.sh`) verifies:
+- ✅ **Remote API Access**: Tests deployed API at https://vd-ct.vercel.app
+- ✅ **Serverless Functions**: Vercel serverless function execution
+- ✅ **In-Memory Storage**: Temporary storage for demo purposes
+- ✅ **Version Control**: Historical value retrieval (within session)
+- ✅ **Error Handling**: Proper error responses
+
+**Note**: Vercel uses in-memory storage, so data resets between function invocations.
 
 ### MongoDB Test Results
 
@@ -150,7 +183,7 @@ The MongoDB test script (`test-mongodb.js`) verifies:
 
 **Expected Output:**
 ```
-🍃 Testing MongoDB Version of Key-Value Store API
+🍃 MongoDB API Regression Test
 1. Testing API Documentation: ✅ OK
 2. Testing Health Check with MongoDB Stats: ✅ Connected
 3. Storing first value: ✅ Success
@@ -160,16 +193,16 @@ The MongoDB test script (`test-mongodb.js`) verifies:
 7. Checking updated MongoDB stats: ✅ Updated
 ```
 
-### Automated Testing Script
+### Vercel Serverless Testing
 
-For comprehensive testing, use the provided test script:
+For testing the deployed Vercel API, use the serverless test script:
 
 ```bash
 # Make the script executable
-chmod +x test-deployed-api.sh
+chmod +x test-vercel-serverless.sh
 
-# Run the complete test suite
-./test-deployed-api.sh
+# Run the Vercel serverless test suite
+./test-vercel-serverless.sh
 ```
 
 This script will automatically:
@@ -189,7 +222,7 @@ brew install jq
 sudo apt-get install jq
 
 # Or run without jq (less formatted output)
-bash test-deployed-api.sh
+bash test-vercel-serverless.sh
 ```
 
 ### Manual Test Commands
@@ -440,8 +473,9 @@ cp .env.example .env
 ├── docker-compose.yml          # Docker Compose setup
 ├── package.json                # Dependencies and scripts
 ├── demo.js                     # Local API demonstration
-├── test-mongodb.js             # MongoDB-specific testing script
-├── test-deployed-api.sh        # Deployed API testing script
+├── test-sqlite-api.js          # SQLite API testing script
+├── test-mongodb.js             # MongoDB API testing script
+├── test-vercel-serverless.sh   # Vercel serverless API testing script
 ├── MONGODB_GUIDE.md            # MongoDB integration guide
 └── DEPLOYMENT.md               # Deployment instructions
 ```

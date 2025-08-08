@@ -89,7 +89,23 @@ Run tests in watch mode:
 npm run test:watch
 ```
 
-## Docker Deployment
+## Deployment Options
+
+### Vercel Deployment (Recommended for Demo)
+
+1. **Deploy to Vercel:**
+   - Push code to GitHub
+   - Connect repository to Vercel
+   - Automatic deployment with `vercel.json` configuration
+
+2. **Serverless Features:**
+   - Uses in-memory database (fresh for each request)
+   - Optimized for serverless environment
+   - Automatic scaling and CDN
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+
+### Docker Deployment
 
 1. **Build and run with Docker Compose:**
 ```bash

@@ -110,7 +110,39 @@ GET /health
 
 ## 🧪 Testing the Live API
 
-### Quick Test Commands
+### Automated Testing Script
+
+For comprehensive testing, use the provided test script:
+
+```bash
+# Make the script executable
+chmod +x test-deployed-api.sh
+
+# Run the complete test suite
+./test-deployed-api.sh
+```
+
+This script will automatically:
+1. Test API documentation endpoint
+2. Verify health check
+3. Store multiple values with timestamps
+4. Test version control functionality
+5. Validate error handling
+6. Display formatted results
+
+**Requirements**: The script requires `jq` for JSON formatting. Install it with:
+```bash
+# macOS
+brew install jq
+
+# Ubuntu/Debian
+sudo apt-get install jq
+
+# Or run without jq (less formatted output)
+bash test-deployed-api.sh
+```
+
+### Manual Test Commands
 
 ```bash
 # 1. View API documentation

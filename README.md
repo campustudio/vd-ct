@@ -8,6 +8,8 @@ A production-quality version-controlled key-value store with HTTP API built with
 
 **GitHub Repository**: [https://github.com/campustudio/vd-ct](https://github.com/campustudio/vd-ct)
 
+> **⚠️ Production Note**: The live demo uses in-memory storage for serverless compatibility. For production deployments, use the MongoDB version for persistent, scalable storage.
+
 ## 📋 Project Overview
 
 This project fulfills the requirements of building a version-controlled key-value store with the following specifications:
@@ -25,6 +27,7 @@ This project fulfills the requirements of building a version-controlled key-valu
 - **Node.js** - Runtime environment
 - **Express.js** - Web framework
 - **SQLite3** - Local database (persistent storage)
+- **MongoDB** - Production database (scalable, cloud-ready)
 - **In-Memory Storage** - Serverless deployment (demo purposes)
 
 ### Validation & Security
@@ -53,7 +56,7 @@ This project fulfills the requirements of building a version-controlled key-valu
 - **Version Control**: Store and retrieve values at specific timestamps
 - **RESTful API**: Simple GET/POST endpoints for data operations
 - **Production Ready**: Includes logging, error handling, rate limiting, and security middleware
-- **Dual Database Support**: SQLite for local development, in-memory for serverless
+- **Triple Database Support**: SQLite for development, MongoDB for production, in-memory for serverless demos
 - **Comprehensive Testing**: Full test suite with 13 passing tests
 - **Docker Support**: Containerized deployment ready
 - **Input Validation**: Robust validation using Joi schemas
@@ -108,7 +111,54 @@ GET /object/:key?timestamp=1640995200
 GET /health
 ```
 
-## 🧪 Testing the Live API
+## 🧪 Testing
+
+### Local API Testing
+
+```bash
+# Run comprehensive test suite
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Test MongoDB version specifically
+npm run test:mongodb
+```
+
+### Manual Testing
+
+```bash
+# Test SQLite version
+npm start
+node demo.js
+
+# Test MongoDB version
+npm run start:mongodb
+node test-mongodb.js
+```
+
+### MongoDB Test Results
+
+The MongoDB test script (`test-mongodb.js`) verifies:
+
+- ✅ **Database Connection**: MongoDB connectivity and health monitoring
+- ✅ **Document Storage**: Storing key-value pairs with automatic timestamps
+- ✅ **Version Control**: Retrieving values at specific timestamps
+- ✅ **Performance Stats**: Real-time database statistics
+- ✅ **Index Optimization**: Efficient queries with proper indexing
+
+**Expected Output:**
+```
+🍃 Testing MongoDB Version of Key-Value Store API
+1. Testing API Documentation: ✅ OK
+2. Testing Health Check with MongoDB Stats: ✅ Connected
+3. Storing first value: ✅ Success
+4. Storing updated value: ✅ Success
+5. Getting latest value: ✅ Correct
+6. Getting value at first timestamp: ✅ Working
+7. Checking updated MongoDB stats: ✅ Updated
+```
 
 ### Automated Testing Script
 
@@ -213,12 +263,20 @@ npm install
 
 3. **Start the server:**
 ```bash
+# SQLite version (default)
 npm start
+
+# MongoDB version (requires MongoDB server)
+npm run start:mongodb
 ```
 
 4. **For development with auto-reload:**
 ```bash
+# SQLite version
 npm run dev
+
+# MongoDB version
+npm run dev:mongodb
 ```
 
 The local server will run on `http://localhost:3000`
@@ -247,6 +305,62 @@ curl -X POST http://localhost:3000/object \
 
 curl http://localhost:3000/object/testkey
 ```
+
+## 🏭 Production Deployment
+
+### 🍃 **Recommended: MongoDB Version**
+
+**For production environments, always use the MongoDB version** for these critical benefits:
+
+- **✅ Persistent Storage**: Data survives server restarts and deployments
+- **✅ Scalability**: Handles thousands of concurrent requests
+- **✅ High Availability**: Built-in replication and failover
+- **✅ Performance**: Optimized indexes for fast queries
+- **✅ Cloud Integration**: Native support for MongoDB Atlas
+
+### Quick Production Setup
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Set up MongoDB (choose one):
+# Option A: Local MongoDB
+brew install mongodb-community  # macOS
+sudo systemctl start mongod     # Linux
+
+# Option B: MongoDB Atlas (recommended)
+# Create free cluster at https://www.mongodb.com/atlas
+# Get connection string from Atlas dashboard
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env with your MongoDB connection string:
+# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/kv_store
+
+# 4. Start production server
+npm run start:mongodb
+```
+
+### 🧪 Test MongoDB Version
+
+```bash
+# Start MongoDB server
+npm run start:mongodb
+
+# Run MongoDB-specific tests
+npm run test:mongodb
+```
+
+### Production vs Development
+
+| Environment | Database | Command | Use Case |
+|-------------|----------|---------|----------|
+| **Development** | SQLite | `npm start` | Local testing, quick prototyping |
+| **Production** | MongoDB | `npm run start:mongodb` | **Scalable, persistent production** |
+| **Serverless Demo** | In-Memory | Vercel deployment | Demo purposes only |
+
+> **⚠️ Important**: The SQLite version is perfect for development, but MongoDB is essential for production due to scalability, persistence, and cloud deployment requirements.
 
 ## Deployment Options
 
@@ -287,7 +401,9 @@ cp .env.example .env
 ## Architecture
 
 - **server.js**: Main application server with Express.js
+- **server-mongodb.js**: MongoDB version (production-ready)
 - **src/database.js**: SQLite database operations
+- **src/database-mongodb.js**: MongoDB database operations
 - **src/validators.js**: Input validation schemas
 - **src/logger.js**: Structured logging system
 - **tests/**: Comprehensive test suite
@@ -304,13 +420,15 @@ cp .env.example .env
 
 ```
 /
-├── server.js                    # Main server (local development)
+├── server.js                    # Main server (SQLite, local development)
+├── server-mongodb.js            # MongoDB version (scalable, production-ready)
 ├── server-serverless.js        # Serverless-optimized version
 ├── api/
 │   ├── index.js                # Vercel serverless entry point
 │   └── test.js                 # Simple test endpoint
 ├── src/
 │   ├── database.js             # SQLite database (local)
+│   ├── database-mongodb.js     # MongoDB database (production)
 │   ├── database-serverless.js  # In-memory database (serverless)
 │   ├── validators.js           # Input validation schemas
 │   └── logger.js               # Structured logging system
@@ -322,7 +440,10 @@ cp .env.example .env
 ├── docker-compose.yml          # Docker Compose setup
 ├── package.json                # Dependencies and scripts
 ├── demo.js                     # Local API demonstration
-└── test-deployed-api.sh        # Deployed API testing script
+├── test-mongodb.js             # MongoDB-specific testing script
+├── test-deployed-api.sh        # Deployed API testing script
+├── MONGODB_GUIDE.md            # MongoDB integration guide
+└── DEPLOYMENT.md               # Deployment instructions
 ```
 
 ## 🔧 Architecture
@@ -332,6 +453,12 @@ cp .env.example .env
 - Persistent data storage in `./data/kv_store.db`
 - Full logging to `./logs/` directory
 - Rate limiting and security middleware
+
+### Production Deployment (MongoDB)
+- **MongoDB** database for scalable storage
+- Persistent data with high availability
+- Optimized for high traffic and concurrent requests
+- Cloud integration with MongoDB Atlas
 
 ### Serverless Deployment (Vercel)
 - **Serverless functions** with in-memory storage
@@ -346,8 +473,8 @@ cp .env.example .env
    - JSON body validation
    - Unix timestamp validation
 
-2. **Database Layer** (`src/database.js` / `src/database-serverless.js`)
-   - Dual implementation for local vs serverless
+2. **Database Layer** (`src/database.js` / `src/database-mongodb.js` / `src/database-serverless.js`)
+   - Triple implementation: development (SQLite) vs production (MongoDB) vs serverless (in-memory)
    - Version control with timestamp indexing
    - Optimized queries for performance
 
